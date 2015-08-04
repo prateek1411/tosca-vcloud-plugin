@@ -320,6 +320,7 @@ def _get_original_port_for_create(
         return port that can be used in rule, if port have already used
         return new port that is next free port after current
     """
+    ctx.target.instance.runtime_properties.setdefault(PORT_REPLACEMENT, {})
     nat_rules = gateway.get_nat_rules()
     if isinstance(
             original_port, basestring) and original_port.lower() == 'any':
@@ -337,7 +338,6 @@ def _get_original_port_for_create(
         else:
             return original_port
 
-    ctx.target.instance.runtime_properties.setdefault(PORT_REPLACEMENT, {})
     # origin port can be string
     for port in xrange(int(original_port), utils.MAX_PORT_NUMBER + 1):
         if not _is_rule_exists(nat_rules, rule_type, original_ip,
