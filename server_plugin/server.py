@@ -93,9 +93,9 @@ def create(vca_client, **kwargs):
                 'guest_customization': {
                     'pre_script': 'pre_script',
                     'post_script': 'post_script',
-                    'public_keys': [{
-                        'key': True
-                    }]
+                    'admin_password': 'pass',
+                    'computer_name': 'computer'
+
                 }
             }
         }
@@ -127,6 +127,7 @@ def _create(vca_client, config, server):
     vapp_name = server['name']
     vapp_template = server['template']
     vapp_catalog = server['catalog']
+    connections = _create_connections_list(vca_client)
     ctx.logger.info("Creating VApp with parameters: {0}".format(server))
     task = vca_client.create_vapp(config['vdc'],
                                   vapp_name,
@@ -139,7 +140,6 @@ def _create(vca_client, config, server):
     wait_for_task(vca_client, task)
 
     ctx.instance.runtime_properties[VCLOUD_VAPP_NAME] = vapp_name
-    connections = _create_connections_list(vca_client)
 
     # we allways have connection to management_network_name
     if connections:
@@ -203,7 +203,8 @@ def start(vca_client, **kwargs):
             ctx.logger.info("Power-on VApp {0}".format(vapp_name))
             task = vapp.poweron()
             if not task:
-                raise cfy_exc.NonRecoverableError("Could not power-on vApp. {0}".
+                raise cfy_exc.NonRecoverableError(
+                    "Could not power-on vApp. {0}".
                                                   format(error_response(vapp)))
             wait_for_task(vca_client, task)
 
@@ -267,11 +268,12 @@ def configure(vca_client, **kwargs):
     server.update(ctx.node.properties.get('server', {}))
     vapp_name = server['name']
     config = get_vcloud_config()
-    custom = server.get(GUEST_CUSTOMIZATION)
-    if custom:
+    custom = server.get(GUEST_CUSTOMIZATION, {})
+    public_keys = _get_connected_keypairs()
+    if custom or public_keys:
         vdc = vca_client.get_vdc(config['vdc'])
         vapp = vca_client.get_vapp(vdc, vapp_name)
-        script = _build_script(custom)
+        script = _build_script(custom, public_keys)
         password = custom.get('admin_password')
         computer_name = custom.get('computer_name')
 
@@ -283,14 +285,15 @@ def configure(vca_client, **kwargs):
         )
         if task is None:
             raise cfy_exc.NonRecoverableError(
-                "Could not set guest customization parameters")
+                "Could not set guest customization parameters. {0}".
+                format(error_response(vapp)))
         wait_for_task(vca_client, task)
-        # This function avialable from API version 5.6
         if vapp.customize_on_next_poweron():
             ctx.logger.info("Customizations successful")
         else:
             raise cfy_exc.NonRecoverableError(
-                "Can't run customization in next power on")
+                "Can't run customization in next power on. {0}".
+                format(error_response(vapp)))
 
     hardware = server.get('hardware')
     if hardware:
@@ -304,37 +307,20 @@ def configure(vca_client, **kwargs):
             try:
                 task = vapp.modify_vm_memory(vapp_name, memory)
                 wait_for_task(vca_client, task)
-                ctx.logger.info("Customize VM memory: {0}.".format(memory))
+                ctx.logger.info("Customize VM memory: '{0}'.".format(memory))
             except Exception:
                 raise cfy_exc.NonRecoverableError(
-                    "Customize VM memory failed: {0}. {1}".
+                    "Customize VM memory failed: '{0}'. {1}".
                     format(task, error_response(vapp)))
         if cpu:
             try:
                 task = vapp.modify_vm_cpu(vapp_name, cpu)
                 wait_for_task(vca_client, task)
-                ctx.logger.info("Customize VM cpu: {0}.".format(cpu))
+                ctx.logger.info("Customize VM cpu: '{0}'.".format(cpu))
             except Exception:
                 raise cfy_exc.NonRecoverableError(
-                    "Customize VM cpu failed: {0}. {1}".
+                    "Customize VM cpu failed: '{0}'. {1}".
                     format(task, error_response(vapp)))
-
-
-def _get_management_network_from_node():
-    """
-        get management network name from:
-        * node properties or
-        * provider context (bootstrap context)
-    """
-    management_network_name = ctx.node.properties.get('management_network')
-    if not management_network_name:
-        resources = ctx.provider_context.get('resources')
-        if resources and 'int_network' in resources:
-            management_network_name = resources['int_network'].get('name')
-    if not management_network_name:
-        raise cfy_exc.NonRecoverableError(
-            "Parameter 'managment_network' for Server node is not defined.")
-    return management_network_name
 
 
 def _get_state(vca_client):
@@ -351,7 +337,6 @@ def _get_state(vca_client):
         ctx.instance.runtime_properties['ip'] = None
         ctx.instance.runtime_properties['networks'] = {}
         return True
-    management_network_name = _get_management_network_from_node()
 
     if not all([connection['ip'] for connection in nw_connections]):
         ctx.logger.info("Network configuration is not finished yet.")
@@ -362,9 +347,11 @@ def _get_state(vca_client):
         for connection in nw_connections}
 
     for connection in nw_connections:
-        if connection['network_name'] == management_network_name:
-            ctx.logger.info("Management network ip address {0}"
-                            .format(connection['ip']))
+        if connection['is_primary']:
+            ctx.logger.info("Primary network ip address '{0}' for"
+                            "  network '{1}'."
+                            .format(connection['ip'],
+                                    connection['network_name']))
             ctx.instance.runtime_properties['ip'] = connection['ip']
             return True
     return False
@@ -395,13 +382,12 @@ def _get_vm_network_connection(vapp, network_name):
             return connection
 
 
-def _build_script(custom):
+def _build_script(custom, public_keys):
     """
         create customization script
     """
     pre_script = custom.get('pre_script', "")
     post_script = custom.get('post_script', "")
-    public_keys = _get_connected_keypairs()
     if not pre_script and not post_script and not public_keys:
         return None
     script_executor = custom.get('script_executor', DEFAULT_EXECUTOR)
@@ -433,7 +419,8 @@ def _get_connected_keypairs():
     if relationships:
         return [relationship.target.instance.runtime_properties['public_key']
                 for relationship in relationships
-                if 'public_key' in relationship.target.instance.runtime_properties]
+                if 'public_key' in
+                relationship.target.instance.runtime_properties]
     else:
         return []
 
@@ -465,10 +452,7 @@ def _build_public_keys_script(public_keys):
             user = DEFAULT_USER
         home = key.get('home')
         if not home:
-            if user == 'root':
-                home = ''
-            else:
-                home = DEFAULT_HOME
+            home = '' if user == 'root' else DEFAULT_HOME
         ssh_dir = ssh_dir_template.format(home, user)
         authorized_keys = authorized_keys_template.format(ssh_dir)
         test_ssh_dir = test_ssh_dir_template.format(
@@ -487,13 +471,8 @@ def _create_connections_list(vca_client):
     ports = _get_connected(ctx.instance, 'port')
     networks = _get_connected(ctx.instance, 'network')
 
-    management_network_name = _get_management_network_from_node()
+    management_network_name = ctx.node.properties.get('management_network')
 
-    if not is_network_exists(vca_client, management_network_name):
-        raise cfy_exc.NonRecoverableError(
-            "Network '{0}' could not be found".format(management_network_name))
-
-    # connection by port
     for port in ports:
         port_properties = port.node.properties['port']
         connections.append(
@@ -505,21 +484,33 @@ def _create_connections_list(vca_client):
                                port_properties.get('primary_interface', False))
         )
 
-    # connection by networks
     for net in networks:
         connections.append(
             _create_connection(get_network_name(net.node.properties),
                                None, None, 'POOL'))
 
-    # add managmenty network if not exist in list
-    if not any([conn['network'] == management_network_name
+    if management_network_name and not any(
+            [conn['network'] == management_network_name
                 for conn in connections]):
         connections.append(_create_connection(management_network_name,
                                               None, None, 'POOL'))
 
+    for conn in connections:
+        if not is_network_exists(vca_client, conn['network']):
+            raise cfy_exc.NonRecoverableError(
+                "Network '{0}' could not be found".format(conn['network']))
+
     primary_iface_set = len(filter(lambda conn: conn.get('primary_interface',
                                                          False),
                                    connections)) > 0
+    if not primary_iface_set:
+        if management_network_name:
+            primary_name = management_network_name
+        elif connections:
+            primary_name = connections[0]['network']
+        else:
+            raise cfy_exc.NonRecoverableError(
+                "Can't setup primary interface")
 
     # check list of connections and set managment network as primary
     # in case when we dont have any primary networks
@@ -530,10 +521,13 @@ def _create_connections_list(vca_client):
             raise cfy_exc.NonRecoverableError(
                 "DHCP for network {0} is not available"
                 .format(network_name))
-
-        if primary_iface_set is False:
+        if not primary_iface_set:
             conn['primary_interface'] = \
-                (network_name == management_network_name)
+                (network_name == primary_name)
+        if conn['primary_interface']:
+            ctx.logger.info(
+                "The primary interface has been set to {}".format(
+                    network_name))
 
     return connections
 
