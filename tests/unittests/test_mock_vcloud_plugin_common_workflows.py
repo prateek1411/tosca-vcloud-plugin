@@ -55,7 +55,7 @@ class VcloudPluginCommonWorkflowsMockTestCase(test_mock_base.TestBase):
             'vcloud_plugin_common.workflows.update_node_instance',
             call_function
         ):
-            vcloud_plugin_common.workflows.update(
+            vcloud_plugin_common.workflows._update(
                 fake_ctx, fake_instance, "token", "org_url"
             )
             self.check_instance(call_function, fake_instance)
@@ -65,7 +65,7 @@ class VcloudPluginCommonWorkflowsMockTestCase(test_mock_base.TestBase):
         update_call = mock.MagicMock()
         internal.handler.storage.update_node_instance = update_call
         fake_ctx._internal = internal
-        vcloud_plugin_common.workflows.update(
+        vcloud_plugin_common.workflows._update(
             fake_ctx, fake_instance, "token", "org_url"
         )
         update_call.assert_called_with(

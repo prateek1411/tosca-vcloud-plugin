@@ -13,12 +13,26 @@
 # limitations under the License.
 
 from cloudify.decorators import workflow
-from cloudify.manager import update_node_instance
+from cloudify.manager import update_node_instance, get_rest_client
 import cloudify.plugins.workflows as default_workflow
 import vcloud_plugin_common
+from network_plugin.keypair import SSH_KEY
 
 
-def update(ctx, instance, token, org_url):
+def _get_all_nodes_instances(ctx, token, org_url):
+    """return all instances from context nodes"""
+    node_instances = set()
+    for node in ctx.nodes:
+        for instance in node.instances:
+            if (vcloud_plugin_common.VCLOUD_CONFIG in node.properties
+               and token
+               and org_url):
+                _update(ctx, instance, token, org_url)
+            node_instances.add(instance)
+    return node_instances
+
+
+def _update(ctx, instance, token, org_url):
     """update token and url in instance"""
     node_instance = instance._node_instance
     rt_properties = node_instance['runtime_properties']
@@ -38,17 +52,27 @@ def update(ctx, instance, token, org_url):
         update_node_instance(node_instance)
 
 
-def _get_all_nodes_instances(ctx, token, org_url):
-    """return all instances from context nodes"""
-    node_instances = set()
-    for node in ctx.nodes:
-        for instance in node.instances:
-            if (vcloud_plugin_common.VCLOUD_CONFIG in node.properties
-               and token
-               and org_url):
-                update(ctx, instance, token, org_url)
-            node_instances.add(instance)
-    return node_instances
+def _cleanup_ssh_keys(ctx):
+    if ctx.local:
+        storage = ctx.internal.handler.storage
+        node_instances = storage.get_node_instances()
+    else:
+        rest = get_rest_client()
+        node_instances = rest.node_instances.list(ctx.deployment.id)
+    for instance in node_instances:
+            rt_properties = instance['runtime_properties']
+            if SSH_KEY in rt_properties:
+                version = instance['version']
+                instance['version'] = version if version else 0
+                del rt_properties[SSH_KEY]
+                if ctx.local:
+                    version = instance['version']
+                    state = instance.get('state')
+                    node_id = instance.id
+                    storage.update_node_instance(node_id, version,
+                                                 rt_properties, state)
+                else:
+                    update_node_instance(instance)
 
 
 @workflow
@@ -61,8 +85,9 @@ def install(ctx, **kwargs):
                                  kwargs.get('org_url')),
         set(),
         default_workflow.NodeInstallationTasksSequenceCreator(),
-        default_workflow.InstallationTasksGraphFinisher
-    )
+        default_workflow.InstallationTasksGraphFinisher)
+    if not kwargs.get('save_keys'):
+        _cleanup_ssh_keys(ctx)
 
 
 @workflow
