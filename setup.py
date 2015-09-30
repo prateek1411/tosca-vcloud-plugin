@@ -16,7 +16,7 @@ from setuptools import setup
 setup(
     zip_safe=True,
     name='cloudify-vcloud-plugin',
-    version='1.2.1m6',
+    version='1.2.1m5',
     packages=[
         'vcloud_plugin_common',
         'server_plugin',
