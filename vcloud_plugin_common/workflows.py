@@ -16,7 +16,7 @@ from cloudify.decorators import workflow
 from cloudify.manager import update_node_instance, get_rest_client
 import cloudify.plugins.workflows as default_workflow
 import vcloud_plugin_common
-from network_plugin.keypair import SSH_KEY
+from network_plugin.keypair import SSH_KEY, PRIVATE_KEY, PUBLIC_KEY
 
 
 def _get_all_nodes_instances(ctx, token, org_url):
@@ -61,10 +61,14 @@ def _cleanup_ssh_keys(ctx):
         node_instances = rest.node_instances.list(ctx.deployment.id)
     for instance in node_instances:
             rt_properties = instance['runtime_properties']
-            if SSH_KEY in rt_properties:
+            save_instance = False
+            for key in [SSH_KEY, PUBLIC_KEY, PRIVATE_KEY]:
+                if key in rt_properties:
+                    del rt_properties[key]
+                    save_instance = True
+            if save_instance:
                 version = instance['version']
                 instance['version'] = version if version else 0
-                del rt_properties[SSH_KEY]
                 if ctx.local:
                     version = instance['version']
                     state = instance.get('state')
