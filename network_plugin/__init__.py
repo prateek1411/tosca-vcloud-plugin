@@ -369,7 +369,7 @@ def _is_gateway_locked(ctx):
     if rest:
         node_instances = rest.node_instances.list(ctx.deployment.id)
     elif ctx.deployment.id == 'local':
-        storage = ctx.internal.handler.storage
+        storage = ctx._endpoint.storage
         node_instances = storage.get_node_instances()
     else:
         return False
