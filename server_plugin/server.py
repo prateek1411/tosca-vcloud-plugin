@@ -140,12 +140,14 @@ def _create(vca_client, config, server):
     task = vca_client.create_vapp(config['vdc'],
                                   vapp_name,
                                   vapp_template,
-                                  vapp_catalog,
-                                  vm_name=vapp_name)
+                                  vapp_catalog)
     if not task:
         raise cfy_exc.NonRecoverableError("Could not create vApp: {0}"
                                           .format(error_response(vca_client)))
     wait_for_task(vca_client, task)
+
+    vdc = vca_client.get_vdc(config['vdc'])
+    vca_client.get_vapp(vdc, vapp_name).modify_vm_name(1, vapp_name)
 
     ctx.instance.runtime_properties[VCLOUD_VAPP_NAME] = vapp_name
 
@@ -314,29 +316,6 @@ def configure(vca_client, **kwargs):
                 "by its name {0}.".format(vapp_name))
         ctx.logger.info("Using vAPP {0}".format(str(vapp_name)))
 
-        if custom or public_keys:
-            script = _build_script(custom, public_keys)
-            password = custom.get('admin_password')
-            computer_name = custom.get('computer_name')
-            ctx.logger.info("Customizing guest OS.")
-            task = vapp.customize_guest_os(
-                vapp_name,
-                customization_script=script,
-                computer_name=computer_name,
-                admin_password=password
-            )
-            if task is None:
-                raise cfy_exc.NonRecoverableError(
-                    "Could not set guest customization parameters. {0}".
-                    format(error_response(vapp)))
-            wait_for_task(vca_client, task)
-            if vapp.customize_on_next_poweron():
-                ctx.logger.info("Customizations successful")
-            else:
-                raise cfy_exc.NonRecoverableError(
-                    "Can't run customization in next power on. {0}".
-                    format(error_response(vapp)))
-
         hardware = server.get('hardware')
         if hardware:
             cpu = hardware.get('cpu')
@@ -364,6 +343,34 @@ def configure(vca_client, **kwargs):
                     raise cfy_exc.NonRecoverableError(
                         "Customize VM cpu failed: '{0}'. {1}".
                         format(task, error_response(vapp)))
+
+        if custom or public_keys:
+            script = _build_script(custom, public_keys)
+            password = custom.get('admin_password')
+            computer_name = custom.get('computer_name')
+            ctx.logger.info("Customizing guest OS.")
+            task = vapp.customize_guest_os(
+                vapp_name,
+                customization_script=script,
+                computer_name=computer_name,
+                admin_password=password
+            )
+            if task is None:
+                raise cfy_exc.NonRecoverableError(
+                    "Could not set guest customization parameters. {0}".
+                    format(error_response(vapp)))
+            wait_for_task(vca_client, task)
+            if vapp.customize_on_next_poweron():
+                ctx.logger.info("Customizations successful")
+            else:
+                customization_task = vapp.force_customization(vapp_name)
+                if customization_task:
+                    ctx.logger.info("Customizations forced")
+                    wait_for_task(vca_client, customization_task)
+                else:
+                    raise cfy_exc.NonRecoverableError(
+                        "Can't run customization in next power on. {0}".
+                        format(error_response(vapp)))
 
         if not _is_primary_connection_has_ip(vapp):
             ctx.logger.info("Power on server for get dhcp ip.")
