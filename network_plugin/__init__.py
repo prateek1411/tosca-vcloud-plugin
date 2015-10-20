@@ -226,6 +226,7 @@ def is_network_routed(vca_client, network_name, gateway):
     """
         network routed and exist in interfaces for this gateway
     """
+    return True
     network = get_network(vca_client, network_name)
     if network.get_Configuration().get_FenceMode() != NAT_ROUTED:
         return False
