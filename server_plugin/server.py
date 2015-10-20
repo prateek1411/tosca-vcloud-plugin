@@ -535,6 +535,8 @@ then
   on `date "+DATE: %Y-%m-%d - TIME: %H:%M:%S"` >> /root/customization.log
   {1}
   {2}
+  sed -i -- 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=0/g' /etc/default/grub
+  grub2-mkconfig -o /boot/grub2/grub.cfg
 fi
 if [ "$1" = "postcustomization" ];
 then
