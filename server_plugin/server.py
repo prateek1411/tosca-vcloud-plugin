@@ -140,13 +140,14 @@ def _create(vca_client, config, server):
     task = vca_client.create_vapp(config['vdc'],
                                   vapp_name,
                                   vapp_template,
-                                  vapp_catalog,
-                                  vm_name=vapp_name)
+                                  vapp_catalog)#,
+#                                  vm_name=vapp_name)
     if not task:
         raise cfy_exc.NonRecoverableError("Could not create vApp: {0}"
                                           .format(error_response(vca_client)))
     wait_for_task(vca_client, task)
-
+    vdc = vca_client.get_vdc(config['vdc'])
+    vca_client.get_vapp(vdc, vapp_name).modify_vm_name(1, vapp_name)
     ctx.instance.runtime_properties[VCLOUD_VAPP_NAME] = vapp_name
 
     # we allways have connection to management_network_name
@@ -319,6 +320,7 @@ def configure(vca_client, **kwargs):
             password = custom.get('admin_password')
             computer_name = custom.get('computer_name')
             ctx.logger.info("Customizing guest OS.")
+            import pdb; pdb.set_trace()
             task = vapp.customize_guest_os(
                 vapp_name,
                 customization_script=script,

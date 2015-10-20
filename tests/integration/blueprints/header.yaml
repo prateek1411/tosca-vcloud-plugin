@@ -72,6 +72,10 @@ inputs:
   test_network_name:
       type: string
       default: ''
+  ssl_verify:
+      type: boolean
+      default: true
+
 
 node_types:
     vcloud_configuration:
@@ -94,3 +98,4 @@ node_templates:
                 service_type: { get_input: service_type }
                 api_version: { get_input: api_version }
                 edge_gateway: { get_input: edge_gateway }
+                ssl_verify: { get_input: ssl_verify }

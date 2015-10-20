@@ -30,24 +30,13 @@ import cloudify_cli.logger as logger
 from cloudify import exceptions as cfy_exc
 SUBSCRIPTION = 'subscription'
 ONDEMAND = 'ondemand'
+PRIVATE = 'vcd'
 RANDOM_PREFIX_LENGTH = 5
 
 
 class Objectview(object):
     def __init__(self, d):
         self.__dict__ = d
-
-
-class IntegrationSubscriptionTestConfig(Config):
-    VCLOUD_CONFIG_PATH_ENV_VAR = 'VCLOUD_INTEGRATION_TEST_CONFIG_PATH'
-    VCLOUD_CONFIG_PATH_DEFAULT = \
-        '~/vcloud_integration_subscription_test_config.yaml'
-
-
-class IntegrationOndemandTestConfig(Config):
-    VCLOUD_CONFIG_PATH_ENV_VAR = 'VCLOUD_INTEGRATION_TEST_CONFIG_PATH'
-    VCLOUD_CONFIG_PATH_DEFAULT = \
-        '~/vcloud_integration_ondemand_test_config.yaml'
 
 
 class VcloudSubscriptionTestConfig(Config):
@@ -59,21 +48,25 @@ class VcloudOndemandTestConfig(Config):
     VCLOUD_CONFIG_PATH_ENV_VAR = 'VCLOUD_CONFIG_PATH'
     VCLOUD_CONFIG_PATH_DEFAULT = '~/vcloud_config_ondemand.yaml'
 
+class VcloudPrivateTestConfig(Config):
+    VCLOUD_CONFIG_PATH_ENV_VAR = 'VCLOUD_CONFIG_PATH'
+    VCLOUD_CONFIG_PATH_DEFAULT = '~/vcloud_config_private.yaml'
+
 
 class TestCase(unittest.TestCase):
 
     def __init__(self, testname):
         super(TestCase, self).__init__(testname)
         test_configs = {
-            SUBSCRIPTION: (VcloudSubscriptionTestConfig().get(),
-                           IntegrationSubscriptionTestConfig().get()),
-            ONDEMAND: (VcloudOndemandTestConfig().get(),
-                       IntegrationOndemandTestConfig().get())}
+            SUBSCRIPTION: VcloudSubscriptionTestConfig().get(),
+            ONDEMAND: VcloudOndemandTestConfig().get(),
+            PRIVATE: VcloudPrivateTestConfig().get()}
+
         if not config:
             raise RuntimeError(
                 "Vcloud Service type not defined."
                 "To define service type for tests, add one of command line key"
-                " to nosetest command: --tc=ondemand: --tc=subscription:")
+                " to nosetest command: --tc=ondemand: --tc=subscription: --tc=vcd:")
         if len(config) != 1:
             raise RuntimeError("Config must contain 1 element")
         self.service_type = config.keys()[0]
@@ -81,14 +74,11 @@ class TestCase(unittest.TestCase):
         if not service_config:
             raise RuntimeError(
                 "Unknown service_type: {0}. Parameter must one of {1}".
-                format(self.service_type, (SUBSCRIPTION, ONDEMAND)))
-        self.vcloud_config = service_config[0]
-        self.test_config = service_config[1]
+                format(self.service_type, (SUBSCRIPTION, ONDEMAND, PRIVATE)))
+        self.vcloud_config = service_config
 
         if not self.vcloud_config:
             raise RuntimeError("vcloud_config empty")
-        if not self.test_config:
-            raise RuntimeError("test_config empty")
         print "\nUsed config: {0}".format(self.service_type)
         self.vca_client = self.get_client()
 
