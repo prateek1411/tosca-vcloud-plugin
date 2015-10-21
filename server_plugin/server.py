@@ -145,11 +145,14 @@ def _create(vca_client, config, server):
         raise cfy_exc.NonRecoverableError("Could not create vApp: {0}"
                                           .format(error_response(vca_client)))
     wait_for_task(vca_client, task)
+    ctx.logger.info("vApp '{0}' has been created.".format(vapp_name))
     vdc = vca_client.get_vdc(config['vdc'])
-    vca_client.get_vapp(vdc, vapp_name).modify_vm_name(1, vapp_name)
-    vdc = vca_client.get_vdc(config['vdc'])
-    vca_client.get_vapp(vdc, vapp_name).modify_vm_name(1, vapp_name)
-
+    task = vca_client.get_vapp(vdc, vapp_name).modify_vm_name(1, vapp_name)
+    if not task:
+        raise cfy_exc.NonRecoverableError(
+            "Can't modyfy VM name".format(vapp_name))
+    wait_for_task(vca_client, task)
+    ctx.logger.info("VM '{0}' has been renamed.".format(vapp_name))
     ctx.instance.runtime_properties[VCLOUD_VAPP_NAME] = vapp_name
 
     # we allways have connection to management_network_name
