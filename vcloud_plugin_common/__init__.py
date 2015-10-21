@@ -433,7 +433,7 @@ def wait_for_task(vca_client, task):
                 "Error during task execution: {0}".format(error.get_message()))
         time.sleep(TASK_RECHECK_TIMEOUT)
         response = requests.get(
-            task.get_href(), verify=False,
+            task.get_href(),
             headers=vca_client.vcloud_session.get_vcloud_headers(),
             verify=config.get('ssl_verify', True))
         task = taskType.parseString(response.content, True)
