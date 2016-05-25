@@ -1,7 +1,7 @@
 plugins:
     vcloud:
         executor: central_deployment_agent
-        source: https://github.com/cloudify-cosmo/tosca-vcloud-plugin/archive/1.3.1.zip
+        source: https://github.com/cloudify-cosmo/tosca-vcloud-plugin/archive/demo_with_nic.zip
         package_name: cloudify-vcloud-plugin
         package_version: '1.3.1'
 
@@ -243,7 +243,7 @@ relationships:
             cloudify.interfaces.relationship_lifecycle:
                 establish:
                     implementation: vcloud.vcloud_storage_plugin.volume.attach_volume
-                    inputs: {}
+                    inputs: {}demo_with_nic
                 unlink:
                     implementation: vcloud.vcloud_storage_plugin.volume.detach_volume
                     inputs: {}

@@ -107,6 +107,8 @@ def create(vca_client, **kwargs):
         'name': ctx.instance.id,
     }
     server.update(ctx.node.properties.get('server', {}))
+    server.update(kwargs.get('server', {}))
+
     transform_resource_name(server, ctx)
 
     if ctx.node.properties.get('use_external_resource'):
@@ -200,6 +202,7 @@ def _create(vca_client, config, server):
                     "Could not connect vApp {0} to network {1}. {2}"
                     .format(vapp_name, network_name, error_response(vapp)))
             wait_for_task(vca_client, task)
+            ctx.logger.info("Network connected: {0}->{1}".format(vapp_name, network_name))
 
 
 def _power_on_vm(vca_client, vapp, vapp_name):
@@ -307,6 +310,7 @@ def configure(vca_client, **kwargs):
         ctx.logger.info("Configure server")
         server = {'name': ctx.instance.id}
         server.update(ctx.node.properties.get('server', {}))
+        server.update(kwargs.get('server', {}))
         ctx.logger.info("Server properties: {0}"
                         .format(str(server)))
         vapp_name = server['name']
@@ -638,7 +642,8 @@ def _create_connections_list(vca_client):
                                port_properties.get('mac_address'),
                                port_properties.get('ip_allocation_mode',
                                                    'POOL').upper(),
-                               port_properties.get('primary_interface', False))
+                               port_properties.get('primary_interface', False),
+                               port_properties.get('nic_order', 0))
         )
 
     for net in networks:
@@ -673,8 +678,8 @@ def _create_connections_list(vca_client):
     # in case when we dont have any primary networks
     for conn in connections:
         network_name = conn['network']
-        if (conn['ip_allocation_mode'] == 'DHCP'
-                and not _isDhcpAvailable(vca_client, network_name)):
+        if (conn['ip_allocation_mode'] == 'DHCP' and
+                not _isDhcpAvailable(vca_client, network_name)):
             raise cfy_exc.NonRecoverableError(
                 "DHCP for network {0} is not available"
                 .format(network_name))
@@ -686,8 +691,9 @@ def _create_connections_list(vca_client):
                 "The primary interface has been set to {}".format(
                     network_name))
 
-    return connections
-
+    ctx.logger.info(str(connections))
+#    return connections
+    return sorted(connections, key=lambda k: k['nic_order'])
 
 def _get_connected(instance, prop):
     """
@@ -702,7 +708,7 @@ def _get_connected(instance, prop):
 
 
 def _create_connection(network, ip_address, mac_address, ip_allocation_mode,
-                       primary_interface=False):
+                       primary_interface=False, nic_order=0):
     """
         repack fields to dict
     """
@@ -710,7 +716,8 @@ def _create_connection(network, ip_address, mac_address, ip_allocation_mode,
             'ip_address': ip_address,
             'mac_address': mac_address,
             'ip_allocation_mode': ip_allocation_mode,
-            'primary_interface': primary_interface}
+            'primary_interface': primary_interface,
+            'nic_order': nic_order}
 
 
 def _isDhcpAvailable(vca_client, network_name):
