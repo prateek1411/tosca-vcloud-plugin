@@ -45,6 +45,7 @@ def create(vca_client, **kwargs):
                 'static_range':  "10.1.1.2-10.1.1.127",
                 'gateway_ip': "10.1.1.1",
                 'edge_gateway': 'gateway',
+                'fence_mode': 'routed' | 'isolated'
                 'name': 'secret_network',
                 "netmask": '255.255.255.0',
                 "dns": ["8.8.8.8", "4.4.4.4"]
@@ -71,7 +72,7 @@ def create(vca_client, **kwargs):
                 "'use_external_resource' is 'false' or absent"
                 .format(network_name))
 
-        static_range = get_mandatory(net_prop, 'static_range') 
+        static_range = get_mandatory(net_prop, 'static_range')
         ip = _split_adresses(static_range)
         gateway_name = net_prop['edge_gateway']
         get_gateway(vca_client, gateway_name)
@@ -89,9 +90,13 @@ def create(vca_client, **kwargs):
         dns_suffix = net_prop.get("dns_suffix")
         ctx.logger.info("Create network {0}."
                         .format(network_name))
+        fence_mode = net_prop.get('fence_mode', vca_client.NATROUTED).lower()
+        if fence_mode == 'routed':
+            fence_mode = vca_client.NATROUTED
         success, result = vca_client.create_vdc_network(
             vdc_name, network_name, gateway_name, start_address,
-            end_address, gateway_ip, netmask, dns1, dns2, dns_suffix)
+            end_address, gateway_ip, netmask, dns1, dns2, dns_suffix,
+            fence_mode)
         if success:
             wait_for_task(vca_client, result)
             ctx.logger.info("Network {0} has been successfully created."
