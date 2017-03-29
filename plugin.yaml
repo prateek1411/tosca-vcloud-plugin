@@ -10,14 +10,39 @@ node_types:
         derived_from: cloudify.nodes.Compute
         properties:
             use_external_resource:
+                description: whether to create the resource or use an existing one
                 default: false
             resource_id:
+                description: |
+                  Name for the new resource,
+                  or if ``use_external_resource`` is ``true``,
+                  the name or ID of an existing resource.
                 default: ''
             server:
+                description: |
+                  key-value server configuration::
+
+                    name: server name.
+                    template: VApp template from which server will be spawned. For more information, see the [Misc section - VApp template](#vapp-template).
+                    catalog: VApp templates catalog.
+                    guest_customization: guest customization section
+                        public_keys: public keys to inject; list of key-value configurations
+                            key: public ssh key
+                            user: user name
+                        computer_name: vm hostname
+                        admin_password: root password
+                        pre_script: pre-customization script
+                        post_script: post-customization script
+                        script_executor: script executor, '/bin/bash' by default
+                    hardware: key-value hardware customization section
+                        cpu: vm cpu count
+                        memory: vm memory size, in MB
                 default: {}
             management_network:
+                description: mangement network name
                 default: ''
             vcloud_config:
+                description: see :ref:`vCloud_Config`
                 default: {}
         interfaces:
             cloudify.interfaces.lifecycle:
@@ -44,12 +69,32 @@ node_types:
         derived_from: cloudify.nodes.Network
         properties:
             network:
+                description: |
+                  key-value network configuration.::
+
+                    edge_gateway: edge gateway name
+                    name: network name
+                    static_range: static ip allocation pool range
+                    netmask: network netmask
+                    gateway_ip: network gateway
+                    dns: list of dns ip addresses
+                    dns_suffix: dns suffix
+                    dhcp: dhcp settings
+                        dhcp_range: DHCP pool range
+                        default_lease: deault lease in seconds
+                        max_lease: maximum lease in seconds
                 default: {}
             use_external_resource:
+                description: whether to create the resource or use an existing one
                 default: false
             resource_id:
+                description: |
+                  Name for the new resource,
+                  or if ``use_external_resource`` is ``true``,
+                  the name or ID of an existing resource.
                 default: ''
             vcloud_config:
+                description: see :ref:`vCloud_Config`
                 default: {}
         interfaces:
             cloudify.interfaces.lifecycle:
@@ -67,8 +112,17 @@ node_types:
         derived_from: cloudify.nodes.Port
         properties:
             port:
+                description: |
+                  key-value server network port configuration.::
+
+                      network: network name.
+                      ip_allocation_mode: ip allocation mode. Can be 'dhcp', 'pool' or 'manual'.
+                      ip_address: ip address if ip allocation mode is 'manual'.
+                      mac_address: interface MAC address.
+                      primary_interface: is interface primary (true or false).
                 default: {}
             vcloud_config:
+                description: see :ref:`vCloud_Config`
                 default: {}
         interfaces:
             cloudify.interfaces.validation:
@@ -79,8 +133,15 @@ node_types:
         derived_from: cloudify.nodes.VirtualIP
         properties:
             floatingip:
+                description: |
+                  key-value floating ip configuration.::
+
+                    edge_gateway: vCloud gateway name
+                    public_ip: public IP. If not specified a public IP will be allocated automatically from the pool of free public IPs.
+
                 default: {}
             vcloud_config:
+                description: see :ref:`vCloud_Config`
                 default: {}
         interfaces:
             cloudify.interfaces.validation:
@@ -91,12 +152,28 @@ node_types:
         derived_from: cloudify.nodes.VirtualIP
         properties:
             use_external_resource:
+                description: whether to create the resource or use an existing one
                 default: false
             nat:
+                description: |
+                  key-value NAT configuration.::
+
+                    edge_gateway: vCloud gateway name
+                    public_ip: public IP. If not specified a public IP will be allocated automatically from the pool of free public IPs.
                 default: {}
             rules:
+                description: |
+                  List of key-value NAT rules.::
+
+                    rules:
+                      - protocol: network protocol. Can be 'tcp', 'udp' or 'any'. Applied only for 'DNAT'
+                        original_port: original port. Applies only for 'DNAT'.
+                        translated_port: translated port. Applies only for 'DNAT'.
+                        type: list of NAT types. Can be 'SNAT', 'DNAT' or both.
+
                 default: []
             vcloud_config:
+                description: see :ref:`vCloud_Config`
                 default: {}
         interfaces:
             cloudify.interfaces.validation:
@@ -107,10 +184,27 @@ node_types:
         derived_from: cloudify.nodes.SecurityGroup
         properties:
             security_group:
+                description: |
+                  key-value SecurityGroup configuration.::
+
+                    edge_gateway: vCloud gateway name
                 default: {}
             rules:
+                description: |
+                  list of key-value security group rules::
+
+                    rules:
+                      - protocol: Can be 'tcp', 'udp', 'icmp' or 'any'
+                        source: source of traffic to apply firewall rule on. Can be 'internal', 'external', 'host', 'any', ip address or ip range.
+                        source_port: port number or 'any'
+                        destination: destination of traffic to apply firewall rule on. Can be 'internal', 'external', 'host', 'any', ip address or ip range.
+                        destination_port: port number or 'any'
+                        action: 'allow' or 'deny'
+                        log_traffic: capture traffic, 'true' or 'false'
+                        description: rule description
                 default: []
             vcloud_config:
+                description: see :ref:`vCloud_Config`
                 default: {}
         interfaces:
             cloudify.interfaces.validation:
@@ -121,10 +215,20 @@ node_types:
         derived_from: cloudify.nodes.Root
         properties:
             auto_generate:
+                description: use if you want to auto-generate the key.
                 default: false
             private_key:
+                description: |
+                  key-value private key configuration::
+
+                    create_file: whether to save the file or not, use with ``auto_generate: true``
                 default: {}
             public_key:
+                description: |
+                  key-value public key configuration::
+
+                    key: ssh public key
+                    user: user name
                 default: {}
         interfaces:
             cloudify.interfaces.validation:
@@ -144,13 +248,25 @@ node_types:
         properties:
             device_name:
                 default: ''
+                description: (unused)
             volume:
+                description: |
+                  key-value volume configuration::
+
+                    name: name for the volume
+                    size: volume size in MB
                 default: {}
             use_external_resource:
+                description: whether to create the resource or use an existing one
                 default: false
             resource_id:
+                description: |
+                  Name for the new resource,
+                  or if ``use_external_resource`` is ``true``,
+                  the name or ID of an existing resource.
                 default: ''
             vcloud_config:
+                description: see :ref:`vCloud_Config`
                 default: {}
         interfaces:
             cloudify.interfaces.lifecycle:
@@ -168,12 +284,19 @@ node_types:
         derived_from: cloudify.nodes.Root
         properties:
             name:
+                description: name for the VDC
                 default: ''
             use_external_resource:
+                description: whether to create the resource or use an existing one
                 default: false
             resource_id:
+                description: |
+                  Name for the new resource,
+                  or if ``use_external_resource`` is ``true``,
+                  the name or ID of an existing resource.
                 default: ''
             vcloud_config:
+                description: see :ref:`vCloud_Config`
                 default: {}
         interfaces:
             cloudify.interfaces.lifecycle:

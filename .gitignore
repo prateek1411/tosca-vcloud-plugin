@@ -17,3 +17,4 @@ cover
 .coverage
 .venv/
 .idea/
+_build/
